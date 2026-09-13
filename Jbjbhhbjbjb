@@ -1,0 +1,670 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Nect Hub Pro",
+   LoadingTitle = "Nect Hub Pro Interface",
+   LoadingSubtitle = "Main Script Hub",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false
+})
+
+-- ==================== หมวดหมู่ / แท็บ ====================
+local MainTab = Window:CreateTab("ฟังก์ชันหลัก", 4483362458)  -- ไอคอนหลัก
+local VisualTab = Window:CreateTab("มองทะลุ", 6031075929)    -- ไอคอนดวงตา
+local CombatTab = Window:CreateTab("การต่อสู้", 4483345998)   -- ไอคอนดาบ
+local SettingsTab = Window:CreateTab("ตั้งค่า", 6031280882)   -- ไอคอนฟันเฟือง
+
+-- ตัวแปรเก็บสถานะฟังก์ชันหลัก
+local AntiAFKEnabled = false
+local InfJumpEnabled = false
+local NoclipEnabled = false
+local WalkSpeedEnabled = false
+local WalkSpeedValue = 16
+local JumpPowerEnabled = false
+local JumpPowerValue = 50
+
+local FlyEnabled = false
+local FlySpeed = 50
+
+-- ตัวแปรระบบฟิสิกส์การบิน
+local bv = nil
+local bg = nil
+
+-- ตัวแปรเก็บสถานะระบบมองทะลุ (Visuals)
+local HighlightESPEnabled = false
+local NameESPEnabled = false
+local DistanceESPEnabled = false
+local BoxESPEnabled = false
+local TracersEnabled = false
+local ESPColor = Color3.fromRGB(255, 0, 0)
+
+-- ตัวแปรเก็บสถานะระบบการต่อสู้ (Combat / Hitbox)
+local HitboxEnabled = false
+local HitboxSize = 10
+local HitboxTransparency = 0.7
+
+-- ตัวแปรเก็บสถานะระบบตั้งค่า & ป้องกัน (Settings & Protection)
+local AntiFlingEnabled = false
+
+-- ตัวแปรเก็บสถานะระบบแสงสว่าง (Lighting)
+local Lighting = game:GetService("Lighting")
+local defaultBrightness = Lighting.Brightness
+local defaultClockTime = Lighting.ClockTime
+local defaultGlobalShadows = Lighting.GlobalShadows
+local defaultAmbient = Lighting.Ambient
+local defaultOutdoorAmbient = Lighting.OutdoorAmbient
+
+local FullbrightEnabled = false
+local FullbrightValue = 2
+
+-- ฟังก์ชันจัดการระบบบิน (BodyVelocity & BodyGyro)
+local function stopFly()
+   local player = game.Players.LocalPlayer
+   if player.Character then
+      local hum = player.Character:FindFirstChildOfClass("Humanoid")
+      local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+      if hum then
+         hum.PlatformStand = false
+      end
+      if hrp then
+         if hrp:FindFirstChild("RayfieldFlyBV") then hrp.RayfieldFlyBV:Destroy() end
+         if hrp:FindFirstChild("RayfieldFlyBG") then hrp.RayfieldFlyBG:Destroy() end
+      end
+   end
+   bv = nil
+   bg = nil
+end
+
+local function startFly()
+   local player = game.Players.LocalPlayer
+   if not player.Character then return end
+   local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+   local hum = player.Character:FindFirstChildOfClass("Humanoid")
+   if not hrp or not hum then return end
+
+   stopFly()
+
+   hum.PlatformStand = true
+
+   bv = Instance.new("BodyVelocity")
+   bv.Name = "RayfieldFlyBV"
+   bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+   bv.Velocity = Vector3.zero
+   bv.Parent = hrp
+
+   bg = Instance.new("BodyGyro")
+   bg.Name = "RayfieldFlyBG"
+   bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+   bg.P = 9e4
+   bg.CFrame = workspace.CurrentCamera.CFrame
+   bg.Parent = hrp
+end
+
+-- ==================== แท็บ: ฟังก์ชันหลัก ====================
+
+MainTab:CreateSection("--- ระบบล่องหน ---")
+
+MainTab:CreateButton({
+   Name = "เปิดใช้งาน ล่องหน (Invisible)",
+   Callback = function()
+      loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invisible-script-20557"))()
+   end,
+})
+
+MainTab:CreateSection("--- ระบบเดินทะลุกำแพง ---")
+
+MainTab:CreateToggle({
+   Name = "เปิด/ปิด เดินทะลุกำแพง (Noclip)",
+   CurrentValue = false,
+   Flag = "NoclipToggle",
+   Callback = function(Value)
+      NoclipEnabled = Value
+      if not Value and game.Players.LocalPlayer.Character then
+         for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+               part.CanCollide = true
+            end
+         end
+      end
+   end,
+})
+
+MainTab:CreateSection("--- ระบบกระโดดไม่จำกัด ---")
+
+MainTab:CreateToggle({
+   Name = "เปิด/ปิด กระโดดไม่จำกัด (Infinite Jump)",
+   CurrentValue = false,
+   Flag = "InfJumpToggle",
+   Callback = function(Value)
+      InfJumpEnabled = Value
+   end,
+})
+
+MainTab:CreateSection("--- ระบบการบิน (Physics BodyVelocity Fly) ---")
+
+MainTab:CreateToggle({
+   Name = "เปิด/ปิด บิน (Fly)",
+   CurrentValue = false,
+   Flag = "FlyToggle",
+   Callback = function(Value)
+      FlyEnabled = Value
+      if Value then
+         startFly()
+      else
+         stopFly()
+      end
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "ใส่ตัวเลขความเร็วบิน",
+   PlaceholderText = "เช่น 50, 100",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then
+         FlySpeed = num
+      end
+   end,
+})
+
+MainTab:CreateSection("--- ระบบการวิ่ง (WalkSpeed) ---")
+
+MainTab:CreateToggle({
+   Name = "เปิด/ปิด วิ่งไว (WalkSpeed)",
+   CurrentValue = false,
+   Flag = "WalkSpeedToggle",
+   Callback = function(Value)
+      WalkSpeedEnabled = Value
+      local player = game.Players.LocalPlayer
+      if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+         if not Value then
+            humanoid.WalkSpeed = 16
+         else
+            humanoid.WalkSpeed = WalkSpeedValue
+         end
+      end
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "ใส่ตัวเลขความเร็ววิ่ง",
+   PlaceholderText = "เช่น 50, 100",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then
+         WalkSpeedValue = num
+         if WalkSpeedEnabled then
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+               player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = num
+            end
+         end
+      end
+   end,
+})
+
+MainTab:CreateSection("--- ระบบความสูงการกระโดด (JumpPower) ---")
+
+MainTab:CreateToggle({
+   Name = "เปิด/ปิด กระโดดสูง (JumpPower)",
+   CurrentValue = false,
+   Flag = "JumpPowerToggle",
+   Callback = function(Value)
+      JumpPowerEnabled = Value
+      local player = game.Players.LocalPlayer
+      if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+         humanoid.UseJumpPower = true
+         if not Value then
+            humanoid.JumpPower = 50
+         else
+            humanoid.JumpPower = JumpPowerValue
+         end
+      end
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "ใส่ตัวเลขความสูงกระโดด",
+   PlaceholderText = "เช่น 100, 200",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then
+         JumpPowerValue = num
+         if JumpPowerEnabled then
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+               local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+               humanoid.UseJumpPower = true
+               humanoid.JumpPower = num
+            end
+         end
+      end
+   end,
+})
+
+-- ==================== แท็บ: มองทะลุ ====================
+
+VisualTab:CreateSection("--- ตัวเลือกการมองทะลุ ---")
+
+VisualTab:CreateToggle({
+   Name = "เปิด/ปิด มองทะลุออร่า (Highlight)",
+   CurrentValue = false,
+   Flag = "HighlightToggle",
+   Callback = function(Value)
+      HighlightESPEnabled = Value
+   end,
+})
+
+VisualTab:CreateToggle({
+   Name = "เปิด/ปิด มองกรอบเส้น (Box ESP)",
+   CurrentValue = false,
+   Flag = "BoxESPToggle",
+   Callback = function(Value)
+      BoxESPEnabled = Value
+   end,
+})
+
+VisualTab:CreateSection("--- ข้อมูลผู้เล่น ---")
+
+VisualTab:CreateToggle({
+   Name = "เปิด/ปิด มองชื่อ (Name ESP)",
+   CurrentValue = false,
+   Flag = "NameESPToggle",
+   Callback = function(Value)
+      NameESPEnabled = Value
+   end,
+})
+
+VisualTab:CreateToggle({
+   Name = "เปิด/ปิด มองระยะห่าง (Distance ESP)",
+   CurrentValue = false,
+   Flag = "DistanceESPToggle",
+   Callback = function(Value)
+      DistanceESPEnabled = Value
+   end,
+})
+
+VisualTab:CreateSection("--- เส้นเชื่อมและสี ---")
+
+VisualTab:CreateToggle({
+   Name = "เปิด/ปิด มองเส้นเชื่อม (Tracers)",
+   CurrentValue = false,
+   Flag = "TracersToggle",
+   Callback = function(Value)
+      TracersEnabled = Value
+   end,
+})
+
+VisualTab:CreateColorPicker({
+   Name = "เลือกสี ESP ทั้งหมด",
+   Color = Color3.fromRGB(255, 0, 0),
+   Flag = "ESPColorPicker",
+   Callback = function(Value)
+      ESPColor = Value
+   end,
+})
+
+-- ==================== แท็บ: การต่อสู้ ====================
+
+CombatTab:CreateSection("--- ระบบขยายฮิตบ็อก (Hitbox Expander) ---")
+
+CombatTab:CreateToggle({
+   Name = "เปิด/ปิด ขยายฮิตบ็อก (Hitbox Expander)",
+   CurrentValue = false,
+   Flag = "HitboxToggle",
+   Callback = function(Value)
+      HitboxEnabled = Value
+      if not Value then
+         for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer and player.Character then
+               local targetPart = player.Character:FindFirstChild("HumanoidRootPart") 
+                  or player.Character:FindFirstChild("Torso") 
+                  or player.Character:FindFirstChild("UpperTorso")
+               if targetPart then
+                  targetPart.Size = Vector3.new(2, 2, 1)
+                  targetPart.Transparency = 1
+               end
+            end
+         end
+      end
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "ขนาดฮิตบ็อก (Hitbox Size)",
+   Range = {2, 50},
+   Increment = 1,
+   Suffix = " Studs",
+   CurrentValue = 10,
+   Flag = "HitboxSizeSlider",
+   Callback = function(Value)
+      HitboxSize = Value
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "ความโปร่งใสฮิตบ็อก (Transparency)",
+   Range = {0, 100},
+   Increment = 5,
+   Suffix = "%",
+   CurrentValue = 70,
+   Flag = "HitboxTransparencySlider",
+   Callback = function(Value)
+      HitboxTransparency = Value / 100
+   end,
+})
+
+-- ==================== แท็บ: ตั้งค่า ====================
+
+SettingsTab:CreateSection("--- ระบบป้องกันตัวละคร (Protection) ---")
+
+SettingsTab:CreateToggle({
+   Name = "เปิด/ปิด กันคนอื่นชนกระเด็น/ดึงตัว (Anti-Fling & Anti-Bring)",
+   CurrentValue = false,
+   Flag = "AntiFlingToggle",
+   Callback = function(Value)
+      AntiFlingEnabled = Value
+      local char = game.Players.LocalPlayer.Character
+      if not Value and char then
+         for _, part in pairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+               part.CustomPhysicalProperties = nil
+            end
+         end
+      end
+   end,
+})
+
+SettingsTab:CreateToggle({
+   Name = "เปิด/ปิด กันหลุดออกจากเกม (Anti-AFK)",
+   CurrentValue = false,
+   Flag = "AntiAFKToggle",
+   Callback = function(Value)
+      AntiAFKEnabled = Value
+   end,
+})
+
+SettingsTab:CreateSection("--- ระบบสว่างแมพ (Fullbright) ---")
+
+SettingsTab:CreateToggle({
+   Name = "เปิด/ปิด แมพสว่าง (Fullbright)",
+   CurrentValue = false,
+   Flag = "FullbrightToggle",
+   Callback = function(Value)
+      FullbrightEnabled = Value
+      if not Value then
+         Lighting.Brightness = defaultBrightness
+         Lighting.ClockTime = defaultClockTime
+         Lighting.GlobalShadows = defaultGlobalShadows
+         Lighting.Ambient = defaultAmbient
+         Lighting.OutdoorAmbient = defaultOutdoorAmbient
+      end
+   end,
+})
+
+SettingsTab:CreateSlider({
+   Name = "ระดับความสว่างแมพ",
+   Range = {1, 10},
+   Increment = 1,
+   Suffix = " Level",
+   CurrentValue = 2,
+   Flag = "FullbrightSlider",
+   Callback = function(Value)
+      FullbrightValue = Value
+   end,
+})
+
+-- ==================== ระบบทำงานเบื้องหลัง ====================
+
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local Players = game.Players
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Tracers = {}
+
+-- ระบบ Anti-AFK
+LocalPlayer.Idled:Connect(function()
+   if AntiAFKEnabled then
+      VirtualUser:CaptureController()
+      VirtualUser:ClickButton2(Vector2.zero)
+   end
+end)
+
+-- ระบบประมวลผลฟิสิกส์ (Stepped Phase)
+RunService.Stepped:Connect(function()
+   -- Noclip
+   if NoclipEnabled and LocalPlayer.Character then
+      for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+         if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+         end
+      end
+   end
+
+   -- Anti-Fling & Anti-Bring System
+   if AntiFlingEnabled then
+      local myChar = LocalPlayer.Character
+      if myChar then
+         -- ตั้งค่าแรงเสียดทานต่ำ เพื่อป้องกันการเกาะ/หมุนดัน
+         for _, part in pairs(myChar:GetChildren()) do
+            if part:IsA("BasePart") then
+               part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+            end
+         end
+
+         -- ลบสิ่งที่พยายามมาเชื่อมหรือดึงตัวละคร (Anti-Bring / Anti-Weld)
+         for _, item in pairs(myChar:GetDescendants()) do
+            if item:IsA("Weld") or item:IsA("WeldConstraint") or item:IsA("BodyMover") or item:IsA("AlignPosition") then
+               if not item.Name:find("Rayfield") and item.Name ~= "Neck" and item.Name ~= "RootJoint" then
+                  item:Destroy()
+               end
+            end
+         end
+      end
+
+      -- ปิด CanCollide ของผู้เล่นคนอื่นที่หมุนตัวเร็วป่วนเมือง (Anti-Fling)
+      for _, player in pairs(Players:GetPlayers()) do
+         if player ~= LocalPlayer and player.Character then
+            for _, part in pairs(player.Character:GetChildren()) do
+               if part:IsA("BasePart") then
+                  if part.AssemblyAngularVelocity.Magnitude > 50 or part.AssemblyLinearVelocity.Magnitude > 250 then
+                     part.CanCollide = false
+                     part.AssemblyAngularVelocity = Vector3.zero
+                     part.AssemblyLinearVelocity = Vector3.zero
+                  end
+               end
+            end
+         end
+      end
+   end
+
+   -- ป้องกันการชนกับฮิตบ็อกขณะเปิด Hitbox Expander
+   if HitboxEnabled then
+      for _, player in pairs(Players:GetPlayers()) do
+         if player ~= LocalPlayer and player.Character then
+            for _, part in pairs(player.Character:GetChildren()) do
+               if part:IsA("BasePart") then
+                  part.CanCollide = false
+               end
+            end
+         end
+      end
+   end
+end)
+
+local function removeTracer(player)
+   if Tracers[player] then
+      Tracers[player]:Remove()
+      Tracers[player] = nil
+   end
+end
+
+local function updatePlayerESP(player)
+   if player == LocalPlayer then return end
+   local char = player.Character
+   if not char then return end
+
+   local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+   local head = char:FindFirstChild("Head")
+
+   -- 1. Highlight ออร่า
+   if HighlightESPEnabled then
+      local hl = char:FindFirstChild("RayfieldHighlight")
+      if not hl then
+         hl = Instance.new("Highlight")
+         hl.Name = "RayfieldHighlight"
+         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+         hl.Parent = char
+      end
+      hl.FillColor = ESPColor
+      hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+      hl.FillTransparency = 0.5
+   else
+      if char:FindFirstChild("RayfieldHighlight") then
+         char.RayfieldHighlight:Destroy()
+      end
+   end
+
+   -- 2. Box ESP
+   if BoxESPEnabled then
+      local box = char:FindFirstChild("RayfieldBox")
+      if not box then
+         box = Instance.new("SelectionBox")
+         box.Name = "RayfieldBox"
+         box.LineThickness = 0.05
+         box.Adornee = char
+         box.Parent = char
+      end
+      box.Color3 = ESPColor
+   else
+      if char:FindFirstChild("RayfieldBox") then
+         char.RayfieldBox:Destroy()
+      end
+   end
+
+   -- 3. Name & Distance ESP
+   if (NameESPEnabled or DistanceESPEnabled) and head then
+      local tag = head:FindFirstChild("RayfieldTag")
+      if not tag then
+         tag = Instance.new("BillboardGui")
+         tag.Name = "RayfieldTag"
+         tag.Size = UDim2.new(0, 200, 0, 50)
+         tag.StudsOffset = Vector3.new(0, 3, 0)
+         tag.AlwaysOnTop = true
+         tag.Parent = head
+
+         local label = Instance.new("TextLabel")
+         label.Name = "ESPText"
+         label.Size = UDim2.new(1, 0, 1, 0)
+         label.BackgroundTransparency = 1
+         label.Font = Enum.Font.SourceSansBold
+         label.TextSize = 14
+         label.TextStrokeTransparency = 0
+         label.Parent = tag
+      end
+
+      local textStr = ""
+      local localHrp = LocalPlayer.Character and (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso"))
+      if localHrp and hrp then
+         local dist = math.floor((localHrp.Position - hrp.Position).Magnitude)
+         if NameESPEnabled and DistanceESPEnabled then
+            textStr = player.DisplayName .. " [" .. dist .. "m]"
+         elseif NameESPEnabled then
+            textStr = player.DisplayName
+         elseif DistanceESPEnabled then
+            textStr = "[" .. dist .. "m]"
+         end
+      elseif NameESPEnabled then
+         textStr = player.DisplayName
+      end
+
+      local label = tag:FindFirstChild("ESPText")
+      if label then
+         label.Text = textStr
+         label.TextColor3 = ESPColor
+      end
+   else
+      if head and head:FindFirstChild("RayfieldTag") then
+         head.RayfieldTag:Destroy()
+      end
+   end
+end
+
+-- ระบบทำงานแบบ RenderStepped (กราฟิก/ปรับขนาดวัตถุ)
+RunService.RenderStepped:Connect(function()
+   -- ปรับขนาดฮิตบ็อก
+   if HitboxEnabled then
+      for _, player in pairs(Players:GetPlayers()) do
+         if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local targetPart = char:FindFirstChild("HumanoidRootPart") 
+               or char:FindFirstChild("Torso") 
+               or char:FindFirstChild("UpperTorso") 
+               or char:FindFirstChild("Head")
+
+            if targetPart then
+               targetPart.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+               targetPart.Transparency = HitboxTransparency
+               targetPart.Massless = true
+            end
+         end
+      end
+   end
+
+   -- ระบบการบิน
+   if FlyEnabled and LocalPlayer.Character then
+      local char = LocalPlayer.Character
+      local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+      local hum = char:FindFirstChildOfClass("Humanoid")
+
+      if hrp and hum then
+         if not hrp:FindFirstChild("RayfieldFlyBV") or not hrp:FindFirstChild("RayfieldFlyBG") then
+            startFly()
+         end
+
+         if bv and bg then
+            hum.PlatformStand = true
+
+            bg.CFrame = Camera.CFrame
+
+            local moveDir = hum.MoveDirection
+            if moveDir.Magnitude > 0 then
+               local camCF = Camera.CFrame
+               local flatLook = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z)
+               local flatRight = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z)
+
+               if flatLook.Magnitude > 0 then flatLook = flatLook.Unit end
+               if flatRight.Magnitude > 0 then flatRight = flatRight.Unit end
+
+               local forwardAmount = moveDir:Dot(flatLook)
+               local rightAmount = moveDir:Dot(flatRight)
+
+               local flyVector = (camCF.LookVector * forwardAmount) + (camCF.RightVector * rightAmount)
+               if flyVector.Magnitude > 0 then
+                  bv.Velocity = flyVector.Unit * FlySpeed
+               else
+                  bv.Velocity = Vector3.zero
+               end
+            else
+               bv.Velocity = Vector3.zero
+            end
+         end
+      end
+   else
+      if bv or bg then
+         stopFly()
+      end
+   end
+
+   -- อัปเดต ESP
+   for _, player in pairs(Players:GetPlayers()) do
+    
